@@ -12,6 +12,7 @@ A reliable data transfer protocol using UDP sockets and Go-Back-N protocol.
 
 Features
 ---------------
+ - Simulated packet loss and corruption.
  - Persistent server
 
 Setup
