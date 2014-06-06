@@ -17,23 +17,6 @@
 
 #include "packet.c"
 
-void loadWindow(struct packet *window, FILE* file, int seq_base, int win_size) {
-	struct packet out;
-	bzero((char *) &out, sizeof(out));
-	out.type = 1; // data packet
-
-	int i;
-	for (i = 0; i < win_size; i++) {
-		int curr = seq_base + i;
-		fseek(file, curr * PACKET_SIZE, SEEK_SET);
-		out.seq = curr;
-		out.size = fread(out.data, 1, PACKET_SIZE, file);
-		window[i] = out;
-	}
-
-	return ;
-}
-
 int simFault(double prob) {
 	if ((double) rand() / (double) RAND_MAX < (double) prob)
 		return 1;
@@ -61,7 +44,7 @@ int main(int argc, char* argv[]) {
 	socklen_t clilen;
 	struct sockaddr_in serv_addr, cli_addr;
 	double loss, corrupt;
-	struct packet in, out, *window;
+	struct packet in, out;
 	char *filename;
 	FILE *file;
 
@@ -144,10 +127,6 @@ int main(int argc, char* argv[]) {
 		curr = 0;
 		seq_base = 0;
 
-		// initialize window
-		window = malloc(win_size * sizeof(in));
-		loadWindow(window, file, seq_base, win_size);
-
 		fd_set readset;
 		struct timeval timeout = {1, 0}; // 1 sec timeout
 
@@ -186,7 +165,6 @@ int main(int argc, char* argv[]) {
 				else if (in.seq >= seq_base) {
 					seq_base = in.seq + 1;
 					printf("Sliding window to %d/%d\n", seq_base, total);
-					loadWindow(window, file, seq_base, win_size);
 					curr = 0;
 				}
 			} else {
@@ -196,11 +174,17 @@ int main(int argc, char* argv[]) {
 				} else if (seq_base + curr >= total)
 					continue;
 
+				bzero((char *) &out, sizeof(out));
+				out.type = 1; // data packet
+				out.seq = seq_base + curr;
+				fseek(file, out.seq * PACKET_SIZE, SEEK_SET);
+				out.size = fread(out.data, 1, PACKET_SIZE, file);
+
 				// send next packet in window
-				if (sendto(sockfd, &window[curr], sizeof(in), 0,
+				if (sendto(sockfd, &out, sizeof(out), 0,
 						(struct sockaddr*) &cli_addr, clilen) < 0)
 					error("ERROR sending packet\n");
-				printPkt(window[curr], 1);
+				printPkt(out, 1);
 				curr++;
 			}
 		}
@@ -245,7 +229,6 @@ int main(int argc, char* argv[]) {
 		printf("File transfer complete\n");
 		printf("----------------------------------------\n");
 		fclose(file);
-		free(window);
 	}
 
 	// unreachable
