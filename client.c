@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
 	while (1) {
 		if (recvfrom(sockfd, &in, sizeof(in), 0,
 				(struct sockaddr*) &serv_addr, &serv_len) < 0)
-			error("ERROR packet lost\n");
+			printf("Packet lost\n");
 		else {
 			printPkt(in, 0);
 

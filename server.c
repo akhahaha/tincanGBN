@@ -92,8 +92,10 @@ int main(int argc, char* argv[]) {
 		// wait for file request
 		printf("Waiting for file request\n");
 		if (recvfrom(sockfd, &in, sizeof(in), 0,
-				(struct sockaddr*) &cli_addr, &clilen) < 0)
-			error("ERROR packet lost\n");
+				(struct sockaddr*) &cli_addr, &clilen) < 0) {
+			printf("Packet lost\n");
+			continue;
+		}
 		printPkt(in, 0);
 
 		// open requested file
@@ -149,8 +151,10 @@ int main(int argc, char* argv[]) {
 				error("ERROR on select\n");
 			} else if (FD_ISSET(sockfd, &readset)) {
 				if (recvfrom(sockfd, &in, sizeof(in), 0,
-						(struct sockaddr*) &cli_addr, &clilen) < 0)
-					error("ERROR packet lost or timed out\n");
+						(struct sockaddr*) &cli_addr, &clilen) < 0) {
+					printf("Packet lost");
+					continue;
+				}
 				printPkt(in, 0);
 
 				// slide window forward if possible
@@ -194,8 +198,10 @@ int main(int argc, char* argv[]) {
 				error("ERROR on select\n");
 			} else if (FD_ISSET(sockfd, &readset)) {
 				if (recvfrom(sockfd, &in, sizeof(in), 0,
-						(struct sockaddr*) &cli_addr, &clilen) < 0)
-					error("ERROR packet lost or timed out\n");
+						(struct sockaddr*) &cli_addr, &clilen) < 0) {
+					printf("Packet lost\n");
+					continue;
+				}
 				printPkt(in, 0);
 
 				if (in.type == 3 && in.seq == out.seq)
