@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -31,6 +32,13 @@ void loadWindow(struct packet *window, FILE* file, int seq_base, int win_size) {
 	}
 
 	return ;
+}
+
+int simFault(double prob) {
+	if ((double) rand() / (double) RAND_MAX < (double) prob)
+		return 1;
+
+	return 0;
 }
 
 void printPkt(struct packet pkt, int io) {
@@ -88,6 +96,8 @@ int main(int argc, char* argv[]) {
 	listen(sockfd, 5);
 	clilen = sizeof(cli_addr);
 
+	srand(time(NULL));
+
 	while (1) {
 		// wait for file request
 		printf("Waiting for file request\n");
@@ -140,8 +150,6 @@ int main(int argc, char* argv[]) {
 
 		fd_set readset;
 		struct timeval timeout = {1, 0}; // 1 sec timeout
-		FD_ZERO(&readset);
-		FD_SET(sockfd, &readset);
 
 		// start GBN procedure (alternate between listening and transmitting)
 		while (seq_base < total) {
@@ -153,15 +161,28 @@ int main(int argc, char* argv[]) {
 				if (recvfrom(sockfd, &in, sizeof(in), 0,
 						(struct sockaddr*) &cli_addr, &clilen) < 0) {
 					printf("Packet lost");
+					curr = 0;
 					continue;
 				}
+
+				// simulate loss and corruption
+				if (simFault(loss)) {
+					printf("Simulated loss %d\n", in.seq);
+					curr = 0;
+					continue;
+				} else if (simFault(corrupt)) {
+					printf("Simulated corruption %d\n", in.seq);
+					curr = 0;
+					continue;
+				}
+
 				printPkt(in, 0);
 
 				// slide window forward if possible
 				if (in.type != 2)
-					printf("IGNORE not ACK packet\n");
+					printf("IGNORE %d: not ACK packet\n", in.seq);
 				else if (in.seq < seq_base || in.seq > seq_base + win_size)
-					printf("IGNORE unexpected ACK\n");
+					printf("IGNORE %d: unexpected ACK\n", in.seq);
 				else if (in.seq >= seq_base) {
 					seq_base = in.seq + 1;
 					printf("Sliding window to %d/%d\n", seq_base, total);
@@ -169,7 +190,7 @@ int main(int argc, char* argv[]) {
 					curr = 0;
 				}
 			} else {
-				if (curr >= win_size) {
+				if (curr >= win_size || seq_base + curr >= total) {
 					printf("Timeout on %d\n", seq_base);
 					curr = 0;
 				} else if (seq_base + curr >= total)
@@ -185,12 +206,18 @@ int main(int argc, char* argv[]) {
 		}
 
 		printf("All packets sent and ACKed\n");
+
+		// send FIN
 		bzero((char *) &out, sizeof(out));
 		out.type = 3; // FIN packet
 		out.seq = seq_base;
 		out.size = 0;
+		if (sendto(sockfd, &out, sizeof(out), 0,
+				(struct sockaddr*) &cli_addr, clilen) < 0)
+			error("ERROR sending FIN\n");
+		printPkt(out, 1);
 
-		// send and receive FIN
+		// wait for FIN ACK, resend if necessary
 		while (1) {
 			FD_ZERO(&readset);
 			FD_SET(sockfd, &readset);

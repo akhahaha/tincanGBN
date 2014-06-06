@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <netdb.h>
 #include <netinet/in.h>
@@ -14,6 +15,13 @@
 #include <sys/socket.h>
 
 #include "packet.c"
+
+int simFault(double prob) {
+	if ((double) rand() / (double) RAND_MAX < (double) prob)
+		return 1;
+
+	return 0;
+}
 
 void printPkt(struct packet pkt, int io) {
 	if (io == 0)
@@ -97,37 +105,55 @@ int main(int argc, char* argv[]) {
 	out.seq = curr - 1;
 	out.size = 0;
 
+	// set random seed
+	srand(time(NULL));
+
 	// gather responses
 	while (1) {
 		if (recvfrom(sockfd, &in, sizeof(in), 0,
 				(struct sockaddr*) &serv_addr, &serv_len) < 0)
 			printf("Packet lost\n");
 		else {
+			// simulate loss and corruption
+			if (simFault(loss)) {
+				printf("Simulated loss %d\n", in.seq);
+				continue;
+			} else if (simFault(corrupt)) {
+				printf("Simulated corruption %d\n", in.seq);
+				// resend last ACK
+				if (sendto(sockfd, &out, sizeof(out), 0,
+						(struct sockaddr*) &serv_addr, serv_len) < 0)
+				error("ERROR resending ACK\n");
+				printPkt(out, 1);
+				continue;
+			}
 			printPkt(in, 0);
 
-			// only accept next sequential packet
-			if (in.seq != curr) {
-				printf("IGNORE expected %d\n", curr);
+			if (in.seq > curr) {
+				printf("IGNORE %d: expected %d\n", in.seq, curr);
 				continue;
-			}
+			} else if (in.seq < curr) {
+				printf("IGNORE %d: expected %d\n", in.seq, curr);
+				out.seq = in.seq;
+			} else {
+				if (in.type == 3) {
+					// FIN signal received
+					break;
+				} else if (in.type != 1) {
+					printf("IGNORE %d: not a data packet\n", in.seq);
+					continue;
+				}
 
-			if (in.type == 3) {
-				// FIN signal received
-				break;
-			} else if (in.type != 1) {
-				printf("IGNORE not a data packet\n");
-				continue;
+				// only write for expected data packet
+				fwrite(in.data, 1, in.size, file);
+				out.seq = curr;
+				curr++;
 			}
-
-			fwrite(in.data, 1, in.size, file);
-			out.seq = curr;
 
 			if (sendto(sockfd, &out, sizeof(out), 0,
 					(struct sockaddr*) &serv_addr, serv_len) < 0)
 				error("ERROR sending ACK\n");
 			printPkt(out, 1);
-
-			curr++;
 		}
 	}
 
