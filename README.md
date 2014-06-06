@@ -8,7 +8,7 @@ tincanGBN
 -------------------------------------------------------------------------------
 Summary
 ---------------
-A reliable data transfer protocol using UDP sockets and Go-Back-N protocol.
+A reliable data-transfer protocol using UDP sockets and Go-Back-N protocol.
 
 Features
 ---------------
@@ -17,6 +17,6 @@ Features
 
 Setup
 ---------------
-1. Run '$ make' to compile client.c and server.c.
-2. Start server with '$ ./server portno win_size PLoss PCorrupt'.
-3. Start client with '$ ./client hostname portno filename PLoss PCorrupt'.
+1. Run `$ make` to compile client.c and server.c.
+2. Start server with `$ ./server portno win_size PLoss PCorrupt`.
+3. Start client with `$ ./client hostname portno filename PLoss PCorrupt`.
