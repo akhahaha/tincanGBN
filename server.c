@@ -79,6 +79,9 @@ int main(int argc, char* argv[]) {
 	listen(sockfd, 5);
 	clilen = sizeof(cli_addr);
 
+	fd_set readset;
+	struct timeval timeout = {1, 0}; // 1 sec timeout
+
 	srand(time(NULL));
 
 	while (1) {
@@ -127,10 +130,7 @@ int main(int argc, char* argv[]) {
 		curr = 0;
 		seq_base = 0;
 
-		fd_set readset;
-		struct timeval timeout = {1, 0}; // 1 sec timeout
-
-		// start GBN procedure (alternate between listening and transmitting)
+		// start GBN procedure
 		while (seq_base < total) {
 			FD_ZERO(&readset);
 			FD_SET(sockfd, &readset);
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		printf("All packets sent and ACKed\n");
+		printf("All packets sent and acknowledged\n");
 
 		// send FIN
 		bzero((char *) &out, sizeof(out));
@@ -229,6 +229,8 @@ int main(int argc, char* argv[]) {
 		printf("File transfer complete\n");
 		printf("----------------------------------------\n");
 		fclose(file);
+
+		// ready for new file request
 	}
 
 	// unreachable

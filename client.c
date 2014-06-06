@@ -100,6 +100,7 @@ int main(int argc, char* argv[]) {
 	curr = 0;
 	file = fopen(strcat(filename, "_copy"), "wb");
 
+	// prepare ACK template
 	bzero((char *) &out, sizeof(out));
 	out.type = 2; // ACK packet
 	out.seq = curr - 1;
@@ -123,18 +124,19 @@ int main(int argc, char* argv[]) {
 				// resend last ACK
 				if (sendto(sockfd, &out, sizeof(out), 0,
 						(struct sockaddr*) &serv_addr, serv_len) < 0)
-				error("ERROR resending ACK\n");
+					error("ERROR resending ACK\n");
 				printPkt(out, 1);
 				continue;
 			}
 			printPkt(in, 0);
 
+			// check packet number and type
 			if (in.seq > curr) {
 				printf("IGNORE %d: expected %d\n", in.seq, curr);
 				continue;
 			} else if (in.seq < curr) {
 				printf("IGNORE %d: expected %d\n", in.seq, curr);
-				out.seq = in.seq;
+				out.seq = in.seq; // send ACK anyways
 			} else {
 				if (in.type == 3) {
 					// FIN signal received
